@@ -1,0 +1,2079 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FLIP 7 - Push Your Luck Card Game</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Canvas Confetti for Flip 7 and Game Wins -->
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+  <!-- FontAwesome for icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            felt: {
+              800: '#0c281e',
+              900: '#071b14',
+              950: '#04100c'
+            },
+            amberGold: '#eab308',
+            neonCyan: '#06b6d4',
+            bustRed: '#ef4444',
+            safeGreen: '#10b981'
+          }
+        }
+      }
+    };
+  </script>
+
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700;800;900&family=JetBrains+Mono:wght@500;700&display=swap');
+
+    body {
+      font-family: 'Outfit', sans-serif;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    .font-mono-num {
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    /* Physical Playing Card Layout */
+    .game-card {
+      width: 78px;
+      height: 118px;
+      border-radius: 12px;
+      box-shadow: 0 6px 16px rgba(0, 0, 0, 0.45), 0 1px 3px rgba(0, 0, 0, 0.25);
+      transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+
+    @media (min-width: 640px) {
+      .game-card {
+        width: 90px;
+        height: 132px;
+        border-radius: 14px;
+      }
+    }
+
+    .game-card:hover {
+      transform: translateY(-4px) scale(1.03);
+    }
+
+    .mini-card {
+      width: 48px;
+      height: 70px;
+      border-radius: 8px;
+      box-shadow: 0 3px 8px rgba(0, 0, 0, 0.35);
+    }
+
+    @keyframes cardDealIn {
+      0% {
+        transform: translateY(-16px) scale(0.88);
+        opacity: 0.15;
+      }
+      100% {
+        transform: translateY(0) scale(1);
+        opacity: 1;
+      }
+    }
+
+    .animate-card-flip {
+      animation: cardDealIn 0.26s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+    }
+
+    @keyframes bustShake {
+      0%, 100% { transform: translateX(0); }
+      20%, 60% { transform: translateX(-8px) rotate(-3deg); }
+      40%, 80% { transform: translateX(8px) rotate(3deg); }
+    }
+
+    .animate-bust {
+      animation: bustShake 0.45s cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
+    }
+
+    .active-opponent-glow {
+      box-shadow: 0 0 0 2px #f59e0b, 0 0 18px rgba(245, 158, 11, 0.4);
+    }
+
+    .frost-border {
+      box-shadow: 0 0 16px rgba(56, 189, 248, 0.45), inset 0 0 10px rgba(56, 189, 248, 0.2);
+    }
+
+    /* Custom scrollbar */
+    ::-webkit-scrollbar {
+      width: 5px;
+      height: 5px;
+    }
+    ::-webkit-scrollbar-track {
+      background: rgba(0, 0, 0, 0.2);
+    }
+    ::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.2);
+      border-radius: 4px;
+    }
+  </style>
+</head>
+
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col justify-between overflow-x-hidden">
+
+  <!-- TOP HEADER & STATUS BAR -->
+  <header class="bg-slate-900/90 backdrop-blur-md border-b border-emerald-900/50 px-4 py-2.5 sticky top-0 z-30 shadow-lg">
+    <div class="max-w-7xl mx-auto flex items-center justify-between">
+      <!-- Title & Branding -->
+      <div class="flex items-center space-x-3">
+        <div class="w-9 h-9 rounded-xl bg-gradient-to-tr from-amber-500 to-yellow-300 flex items-center justify-center font-black text-slate-950 shadow-md shadow-amber-500/20 text-lg tracking-tighter border border-yellow-200">
+          7
+        </div>
+        <div>
+          <div class="flex items-center space-x-2">
+            <h1 class="font-black tracking-wider text-xl uppercase bg-gradient-to-r from-amber-300 via-yellow-100 to-emerald-400 bg-clip-text text-transparent">FLIP 7</h1>
+            <span class="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-emerald-950/80 border border-emerald-600/40 text-emerald-400">Card Game</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Center Round & Game Info -->
+      <div class="hidden sm:flex items-center space-x-4 bg-slate-950/60 px-3.5 py-1.5 rounded-xl border border-slate-800">
+        <div class="text-xs">
+          <span class="text-slate-400">Round:</span>
+          <span id="roundCounter" class="font-bold text-amber-400 ml-1 font-mono-num">1</span>
+        </div>
+        <div class="h-3 w-px bg-slate-800"></div>
+        <div class="text-xs">
+          <span class="text-slate-400">Target Goal:</span>
+          <span id="targetScoreDisplay" class="font-bold text-emerald-400 ml-1 font-mono-num">200 pts</span>
+        </div>
+        <div class="h-3 w-px bg-slate-800"></div>
+        <div class="text-xs">
+          <span class="text-slate-400">Cards in Deck:</span>
+          <span id="deckCounter" class="font-bold text-cyan-400 ml-1 font-mono-num">94</span>
+        </div>
+      </div>
+
+      <!-- Action Buttons -->
+      <div class="flex items-center space-x-2">
+        <button id="audioToggleBtn" onclick="toggleSound()" title="Toggle Sound" class="w-8 h-8 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 flex items-center justify-center transition border border-slate-700">
+          <i id="audioIcon" class="fas fa-volume-up text-sm"></i>
+        </button>
+        <button onclick="openRulesModal()" title="How to Play" class="px-2.5 py-1 text-xs font-semibold rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 flex items-center space-x-1.5 transition">
+          <i class="fas fa-book-open text-amber-400"></i>
+          <span class="hidden md:inline">Rules</span>
+        </button>
+        <button onclick="openNewGameModal()" title="New Game Setup" class="px-2.5 py-1 text-xs font-semibold rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white shadow-sm shadow-emerald-700/50 flex items-center space-x-1.5 transition">
+          <i class="fas fa-plus"></i>
+          <span>New Game</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- EVENT SPOTLIGHT OVERLAY NOTIFICATION -->
+  <div id="spotlightOverlay" class="fixed inset-x-0 top-16 z-50 flex justify-center pointer-events-none transition-all duration-300 opacity-0 transform -translate-y-4">
+    <div id="spotlightCard" class="bg-slate-900/95 border-2 border-amber-400 text-white px-5 py-3 rounded-2xl shadow-2xl backdrop-blur-md flex items-center space-x-3 max-w-md mx-4">
+      <div id="spotlightIcon" class="w-10 h-10 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center text-xl font-black">
+        <i class="fas fa-exclamation"></i>
+      </div>
+      <div>
+        <div id="spotlightTitle" class="text-sm font-black uppercase tracking-wider text-amber-400">Notice</div>
+        <div id="spotlightSubtitle" class="text-xs text-slate-200 font-medium">Important game update</div>
+      </div>
+    </div>
+  </div>
+
+  <main class="flex-1 max-w-7xl w-full mx-auto p-2 sm:p-4 flex flex-col gap-3">
+    
+    <!-- TOP OPPONENTS ROW -->
+    <div>
+      <div class="flex items-center justify-between mb-1.5 px-1">
+        <span class="text-[11px] font-bold uppercase tracking-wider text-slate-400 flex items-center space-x-1.5">
+          <i class="fas fa-users text-indigo-400"></i>
+          <span>Opponents Across Table</span>
+        </span>
+        <span class="text-[10px] text-slate-500">Duplicate numbers bust! Collect 7 unique for +15 bonus</span>
+      </div>
+      <div id="opponentsContainer" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5 transition-all duration-300">
+        <!-- Opponents rendered dynamically -->
+      </div>
+    </div>
+
+    <!-- CENTER TABLE: Deck, Discard, Action Notifications & Odds Tracker -->
+    <div class="bg-gradient-to-b from-felt-900 to-felt-950 rounded-2xl border border-emerald-900/60 p-3 sm:p-4 shadow-2xl relative overflow-hidden flex flex-col md:flex-row items-center justify-between gap-4">
+      <div class="absolute inset-0 opacity-5 pointer-events-none bg-[radial-gradient(#10b981_1px,transparent_1px)] [background-size:16px_16px]"></div>
+
+      <!-- Left: Deck and Discard Pile -->
+      <div class="flex items-center space-x-4 sm:space-x-6 z-10">
+        <!-- Draw Deck (Card Back Visual) -->
+        <div class="relative group cursor-pointer" onclick="handleHitClick()" title="Draw Deck - Click to Hit">
+          <div class="w-16 h-24 sm:w-20 sm:h-28 rounded-xl bg-gradient-to-br from-indigo-700 via-purple-700 to-slate-900 border-2 border-indigo-400/50 flex flex-col items-center justify-center shadow-xl shadow-black/60 relative overflow-hidden transition transform group-hover:-translate-y-1">
+            <div class="absolute inset-1.5 border border-white/20 rounded-lg flex flex-col items-center justify-center">
+              <span class="text-[9px] font-bold text-amber-300 uppercase tracking-widest">FLIP</span>
+              <span class="font-black text-2xl sm:text-3xl text-amber-400 drop-shadow">7</span>
+            </div>
+            <div class="absolute -top-1 -right-1 w-full h-full rounded-xl bg-indigo-900 -z-10 border border-indigo-400/20"></div>
+            <div class="absolute -top-2 -right-2 w-full h-full rounded-xl bg-indigo-950 -z-20"></div>
+          </div>
+          <div class="text-center mt-1">
+            <span class="text-[11px] font-bold uppercase tracking-wider text-slate-400">Draw Deck</span>
+            <span id="centerDeckCount" class="block font-mono-num text-xs font-bold text-indigo-300">94 cards</span>
+          </div>
+        </div>
+
+        <!-- Discard Pile -->
+        <div class="relative">
+          <div id="discardPileVisual" class="w-16 h-24 sm:w-20 sm:h-28 rounded-xl bg-slate-900/90 border-2 border-dashed border-slate-700 flex flex-col items-center justify-center shadow-inner relative">
+            <i class="fas fa-trash-alt text-slate-600 text-lg mb-1"></i>
+            <span class="text-[10px] uppercase font-bold text-slate-500">Discard</span>
+            <span id="discardCount" class="font-mono-num text-xs font-bold text-slate-400">0</span>
+          </div>
+          <div class="text-center mt-1">
+            <span class="text-[11px] font-bold uppercase tracking-wider text-slate-500">Discard Pile</span>
+          </div>
+        </div>
+
+        <!-- Real-time Live Bust Probability Badge -->
+        <div class="bg-slate-900/90 border border-slate-800 rounded-xl p-2.5 flex flex-col justify-center min-w-[125px] shadow-sm">
+          <div class="flex items-center justify-between text-[11px] font-bold text-slate-400 mb-0.5">
+            <span>Bust Risk:</span>
+            <span id="riskLabel" class="text-emerald-400 font-extrabold">LOW</span>
+          </div>
+          <div class="flex items-baseline space-x-1">
+            <span id="bustProbability" class="font-mono-num text-xl sm:text-2xl font-black text-emerald-400">0%</span>
+            <span class="text-[10px] text-slate-500">on next hit</span>
+          </div>
+          <div class="w-full bg-slate-800 h-1.5 rounded-full mt-1.5 overflow-hidden">
+            <div id="riskBar" class="bg-emerald-500 h-full rounded-full transition-all duration-300" style="width: 0%"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Center Live Action & Notification Banner -->
+      <div class="flex-1 text-center px-3 z-10 w-full md:w-auto">
+        <div id="turnBanner" class="inline-flex items-center space-x-2 px-4 py-1.5 rounded-full bg-slate-900/95 border border-slate-700 text-sm font-semibold shadow-inner">
+          <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping"></span>
+          <span id="turnBannerText">Your turn to play! Hit or Stay?</span>
+        </div>
+        <div id="subAlertText" class="text-xs text-amber-300/90 mt-1.5 min-h-[18px] font-medium">
+          Deal complete. Flip cards wisely!
+        </div>
+      </div>
+
+      <!-- Right: Hand Value breakdown -->
+      <div class="bg-slate-900/90 border border-slate-800/90 rounded-xl p-2.5 z-10 text-right min-w-[140px] hidden sm:block">
+        <div class="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Hand Breakdown</div>
+        <div class="text-xs text-slate-300 mt-1 flex justify-between">
+          <span class="text-slate-400">Unique Cards:</span>
+          <span id="activeUniqueCount" class="font-bold text-amber-400 font-mono-num">0 / 7</span>
+        </div>
+        <div class="text-xs text-slate-300 flex justify-between">
+          <span class="text-slate-400">Hand Value:</span>
+          <span id="activeHandPoints" class="font-bold text-emerald-400 font-mono-num">0 pts</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- PLAYER'S BOARD (COLLECTED NUMBERS & CONTROLS) -->
+    <div id="activePlayerSection" class="bg-slate-900/95 border-2 border-emerald-500/80 rounded-2xl p-3 sm:p-4 shadow-xl relative transition-all duration-300">
+      <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800/80 pb-2.5 mb-3">
+        <!-- Player Info Badge -->
+        <div class="flex items-center space-x-3">
+          <div id="activeAvatar" class="w-10 h-10 rounded-xl bg-gradient-to-tr from-emerald-600 to-teal-400 flex items-center justify-center text-white font-bold text-lg shadow">
+            <i class="fas fa-user"></i>
+          </div>
+          <div>
+            <div class="flex items-center space-x-2">
+              <span id="activePlayerName" class="font-black text-lg text-white">Player 1</span>
+              <span id="activePlayerTag" class="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-950 text-emerald-300 border border-emerald-800">YOU</span>
+              
+              <!-- Badges -->
+              <div id="activeShieldBadge" class="hidden text-xs bg-cyan-950 border border-cyan-600 text-cyan-300 px-2.5 py-0.5 rounded-full font-bold flex items-center space-x-1 shadow-sm">
+                <i class="fas fa-shield-alt text-cyan-400"></i>
+                <span>2nd Chance Shield Active</span>
+              </div>
+              <div id="activeFrozenBadge" class="hidden text-xs bg-sky-950 border border-sky-400 text-sky-300 px-2.5 py-0.5 rounded-full font-bold flex items-center space-x-1 shadow-sm">
+                <i class="fas fa-snowflake text-sky-400 animate-spin"></i>
+                <span>FROZEN IN ICE</span>
+              </div>
+            </div>
+            <div class="text-xs text-slate-400 flex items-center space-x-3 mt-0.5">
+              <span>Banked Total: <strong id="activeTotalScore" class="text-amber-400 font-mono-num text-sm">0</strong></span>
+              <span>•</span>
+              <span>Hand Value: <strong id="activeRoundScore" class="text-emerald-400 font-mono-num text-sm">+0</strong></span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Push Luck Controls -->
+        <div id="actionControls" class="flex items-center space-x-3 w-full sm:w-auto justify-end">
+          <button id="stayBtn" onclick="handleStayClick()" class="flex-1 sm:flex-initial px-5 py-2.5 rounded-xl font-bold bg-slate-800 hover:bg-slate-700 text-amber-300 border border-amber-500/40 shadow-md transition transform active:scale-95 flex items-center justify-center space-x-2">
+            <i class="fas fa-hand-paper"></i>
+            <span id="stayBtnText">STAY (Bank Points)</span>
+          </button>
+          
+          <button id="hitBtn" onclick="handleHitClick()" class="flex-1 sm:flex-initial px-6 py-2.5 rounded-xl font-black bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-500 hover:to-teal-400 text-white shadow-lg shadow-emerald-900/50 transition transform active:scale-95 flex items-center justify-center space-x-2 border border-emerald-400/40">
+            <i class="fas fa-layer-group"></i>
+            <span id="hitBtnText">HIT (Flip Card)</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Player Hand Display Area -->
+      <div>
+        <div class="flex items-center justify-between mb-2">
+          <div class="text-xs font-black uppercase tracking-wider text-slate-300 flex items-center space-x-2">
+            <i class="fas fa-th-large text-emerald-400"></i>
+            <span>COLLECTED NUMBERS</span>
+            <span class="text-[11px] text-slate-400 font-normal lowercase">(duplicates bust! flip 7 unique for +15 bonus)</span>
+          </div>
+          <!-- 7 Unique Meter -->
+          <div class="flex items-center space-x-1.5">
+            <span class="text-[10px] font-bold text-slate-400 uppercase mr-1">Streak:</span>
+            <div id="uniquePips" class="flex items-center space-x-1"></div>
+          </div>
+        </div>
+
+        <!-- Cards Row: Dedicated container for high-contrast card faces -->
+        <div id="activePlayerCards" class="flex flex-wrap gap-2.5 sm:gap-3.5 min-h-[135px] p-3 bg-slate-950/80 rounded-xl border border-slate-800 items-center">
+          <div class="text-xs text-slate-400 italic p-3">No cards yet. Press HIT to flip!</div>
+        </div>
+
+        <!-- Modifiers & Physical Bonus Cards Row -->
+        <div id="activeModifiersRow" class="mt-3 hidden">
+          <div class="text-[11px] font-bold text-slate-400 mb-1.5 flex items-center space-x-1.5">
+            <i class="fas fa-sparkles text-amber-400"></i>
+            <span>ACTIVE MODIFIERS & BONUSES:</span>
+          </div>
+          <div id="activeModifiersList" class="flex flex-wrap gap-2.5 sm:gap-3.5"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- COLLAPSIBLE RECENT ACTIVITY LOG -->
+    <div class="bg-slate-900/70 border border-slate-800 rounded-xl p-2.5">
+      <div class="flex items-center justify-between cursor-pointer" onclick="toggleLog()">
+        <span class="text-xs font-bold text-slate-400 flex items-center space-x-2">
+          <i class="fas fa-list-ul text-emerald-400"></i>
+          <span>Game Activity Log</span>
+        </span>
+        <div class="flex items-center space-x-2 text-xs text-slate-500">
+          <span id="logToggleLabel">Show recent</span>
+          <i id="logChevron" class="fas fa-chevron-down"></i>
+        </div>
+      </div>
+      <div id="logContainer" class="hidden mt-2 pt-2 border-t border-slate-800 max-h-24 overflow-y-auto font-mono text-[11px] space-y-1 text-slate-300">
+      </div>
+    </div>
+  </main>
+
+  <!-- ACTION CARD TARGET SELECTION MODAL -->
+  <div id="targetModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-slate-900 border-2 border-amber-500/80 rounded-2xl max-w-md w-full p-5 shadow-2xl">
+      <div class="flex items-center space-x-3 mb-3">
+        <div id="targetActionIcon" class="w-10 h-10 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center text-xl font-bold border border-amber-500/40">
+          <i class="fas fa-bolt"></i>
+        </div>
+        <div>
+          <h3 id="targetModalTitle" class="text-lg font-black text-white">Select Action Target</h3>
+          <p id="targetModalDesc" class="text-xs text-slate-300">Choose who to apply this action card to.</p>
+        </div>
+      </div>
+
+      <div id="targetOptionsList" class="space-y-2 my-4"></div>
+
+      <div class="text-center">
+        <span class="text-[11px] text-slate-500">Action cards must be played immediately upon being flipped.</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ROUND RECAP & SUMMARY MODAL -->
+  <div id="roundSummaryModal" class="fixed inset-0 bg-black/85 backdrop-blur-md z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-slate-900 border-2 border-emerald-500/80 rounded-2xl max-w-lg w-full p-5 sm:p-6 shadow-2xl max-h-[90vh] overflow-y-auto">
+      <div class="flex items-center justify-between border-b border-slate-800 pb-3 mb-3">
+        <div class="flex items-center space-x-2.5">
+          <div class="w-9 h-9 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center text-lg font-black border border-emerald-500/40">
+            <i class="fas fa-check-double"></i>
+          </div>
+          <div>
+            <h3 id="roundSummaryTitle" class="text-lg font-black text-white">Round 1 Complete!</h3>
+            <p id="roundSummaryReason" class="text-xs text-slate-300">All players finished their turns.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">Round Results & Banked Points:</div>
+      <div id="roundSummaryList" class="space-y-2.5 my-3"></div>
+
+      <div class="mt-5 pt-3 border-t border-slate-800 flex justify-end">
+        <button id="nextRoundBtn" onclick="proceedToNextRound()" class="w-full sm:w-auto px-6 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-sm shadow-lg shadow-emerald-700/40 transition transform active:scale-95 flex items-center justify-center space-x-2">
+          <span>Deal Next Round</span>
+          <i class="fas fa-arrow-right"></i>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- GAME OVER MODAL -->
+  <div id="gameOverModal" class="fixed inset-0 bg-black/90 backdrop-blur-md z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-slate-900 border-2 border-amber-400 rounded-2xl max-w-md w-full p-6 text-center shadow-2xl">
+      <div class="w-16 h-16 rounded-2xl bg-gradient-to-tr from-amber-500 to-yellow-300 text-slate-950 mx-auto flex items-center justify-center text-3xl font-black mb-3 shadow-lg shadow-amber-500/30">
+        <i class="fas fa-crown"></i>
+      </div>
+      <h2 class="text-2xl font-black text-white">GAME OVER!</h2>
+      <p id="winnerText" class="text-emerald-400 font-bold text-lg mt-1">Player 1 Wins the Game!</p>
+      
+      <div id="finalScoreList" class="my-4 bg-slate-950 rounded-xl p-3 border border-slate-800 space-y-2"></div>
+
+      <div class="flex space-x-3">
+        <button onclick="restartGameSameSettings()" class="flex-1 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-sm shadow transition">
+          Rematch
+        </button>
+        <button onclick="openNewGameModal()" class="flex-1 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-sm border border-slate-700 transition">
+          Setup New Game
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- NEW GAME & SETUP MODAL -->
+  <div id="newGameModal" class="fixed inset-0 bg-black/85 backdrop-blur-md z-50 flex items-center justify-center p-4">
+    <div class="bg-slate-900 border border-slate-700 rounded-2xl max-w-lg w-full p-6 shadow-2xl max-h-[90vh] overflow-y-auto">
+      <div class="flex items-center justify-between border-b border-slate-800 pb-3 mb-4">
+        <div class="flex items-center space-x-2.5">
+          <div class="w-8 h-8 rounded-lg bg-amber-400 text-slate-950 flex items-center justify-center font-black">7</div>
+          <h2 class="text-xl font-black text-white">Start New Game</h2>
+        </div>
+        <button onclick="closeNewGameModal()" class="text-slate-400 hover:text-white p-1">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+
+      <!-- Mode Picker -->
+      <div class="mb-4">
+        <label class="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">Game Mode</label>
+        <div class="grid grid-cols-2 gap-3">
+          <button type="button" id="modeAiBtn" onclick="selectGameMode('ai')" class="p-3 rounded-xl border-2 border-emerald-500 bg-emerald-950/40 text-left transition">
+            <div class="flex items-center space-x-2 text-emerald-400 font-bold text-sm mb-1">
+              <i class="fas fa-robot"></i>
+              <span>Play vs AI</span>
+            </div>
+            <p class="text-[11px] text-slate-400">Challenge smart computer players solo</p>
+          </button>
+
+          <button type="button" id="modePassBtn" onclick="selectGameMode('pass')" class="p-3 rounded-xl border-2 border-slate-800 bg-slate-800/40 text-left hover:border-slate-700 transition">
+            <div class="flex items-center space-x-2 text-slate-200 font-bold text-sm mb-1">
+              <i class="fas fa-users"></i>
+              <span>Pass & Play</span>
+            </div>
+            <p class="text-[11px] text-slate-400">Play with friends on this device</p>
+          </button>
+        </div>
+      </div>
+
+      <!-- Player Count -->
+      <div class="mb-4">
+        <label class="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">Number of Players</label>
+        <div class="flex space-x-2">
+          <button onclick="setPlayerCount(2)" class="player-count-btn flex-1 py-2 rounded-lg font-bold text-sm bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300">2</button>
+          <button onclick="setPlayerCount(3)" class="player-count-btn flex-1 py-2 rounded-lg font-bold text-sm bg-emerald-600 text-white border border-emerald-500 shadow">3</button>
+          <button onclick="setPlayerCount(4)" class="player-count-btn flex-1 py-2 rounded-lg font-bold text-sm bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300">4</button>
+          <button onclick="setPlayerCount(5)" class="player-count-btn flex-1 py-2 rounded-lg font-bold text-sm bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300">5</button>
+        </div>
+      </div>
+
+      <!-- Player Config Inputs -->
+      <div id="playerConfigList" class="mb-4 space-y-2"></div>
+
+      <!-- Target Score -->
+      <div class="mb-5">
+        <label class="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">Target Winning Score</label>
+        <div class="grid grid-cols-3 gap-2">
+          <button onclick="setWinningScore(100)" class="score-target-btn py-2 rounded-lg text-xs font-bold bg-slate-800 border border-slate-700 text-slate-300">100 (Quick)</button>
+          <button onclick="setWinningScore(150)" class="score-target-btn py-2 rounded-lg text-xs font-bold bg-slate-800 border border-slate-700 text-slate-300">150 (Standard)</button>
+          <button onclick="setWinningScore(200)" class="score-target-btn py-2 rounded-lg text-xs font-bold bg-emerald-600 border border-emerald-500 text-white shadow">200 (Official)</button>
+        </div>
+      </div>
+
+      <!-- AI Speed -->
+      <div id="aiSpeedContainer" class="mb-5">
+        <label class="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">AI Turn Speed</label>
+        <div class="grid grid-cols-3 gap-2">
+          <button onclick="setAiSpeed(1100)" class="speed-btn py-1.5 rounded-lg text-xs font-bold bg-slate-800 border border-slate-700 text-slate-300">Relaxed</button>
+          <button onclick="setAiSpeed(650)" class="speed-btn py-1.5 rounded-lg text-xs font-bold bg-emerald-600 border border-emerald-500 text-white">Normal</button>
+          <button onclick="setAiSpeed(250)" class="speed-btn py-1.5 rounded-lg text-xs font-bold bg-slate-800 border border-slate-700 text-slate-300">Fast</button>
+        </div>
+      </div>
+
+      <button onclick="startConfiguredGame()" class="w-full py-3 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-black text-base shadow-lg shadow-emerald-700/40 transition transform active:scale-98 flex items-center justify-center space-x-2">
+        <i class="fas fa-play"></i>
+        <span>Start Game!</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- RULES MODAL -->
+  <div id="rulesModal" class="fixed inset-0 bg-black/85 backdrop-blur-md z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-slate-900 border border-slate-700 rounded-2xl max-w-2xl w-full p-6 shadow-2xl max-h-[90vh] overflow-y-auto">
+      <div class="flex items-center justify-between border-b border-slate-800 pb-3 mb-4">
+        <div class="flex items-center space-x-2.5">
+          <i class="fas fa-book-open text-amber-400 text-xl"></i>
+          <h2 class="text-xl font-black text-white">How to Play Flip 7</h2>
+        </div>
+        <button onclick="closeRulesModal()" class="text-slate-400 hover:text-white p-1">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+
+      <div class="space-y-4 text-xs sm:text-sm text-slate-300 leading-relaxed">
+        <div class="bg-slate-950/60 p-3 rounded-xl border border-slate-800">
+          <h4 class="font-bold text-amber-400 uppercase tracking-wider mb-1 flex items-center space-x-1.5">
+            <i class="fas fa-trophy"></i>
+            <span>The Objective</span>
+          </h4>
+          <p>Be the first player to reach <strong>200 points</strong> (or your selected target) across rounds by flipping cards, banking points, and pulling off the <strong>Flip 7 bonus</strong>!</p>
+        </div>
+
+        <div>
+          <h4 class="font-bold text-emerald-400 uppercase tracking-wider mb-1">Turn Decisions: Hit or Stay?</h4>
+          <ul class="list-disc list-inside space-y-1 text-slate-300">
+            <li><strong>HIT:</strong> Flip 1 card face up from the deck. If it's a number card you <em>already hold</em>, you <strong>BUST</strong>! All cards in your hand score 0 points for the round.</li>
+            <li><strong>STAY:</strong> Bank all card values in front of you. You safely sit out the rest of the round.</li>
+          </ul>
+        </div>
+
+        <div class="bg-amber-950/30 p-3 rounded-xl border border-amber-900/40">
+          <h4 class="font-bold text-amber-300 uppercase tracking-wider mb-1 flex items-center space-x-1.5">
+            <i class="fas fa-star"></i>
+            <span>The Flip 7 Bonus (+15 pts!)</span>
+          </h4>
+          <p>If you collect <strong>7 unique number cards</strong>, the round ends immediately! You score all your cards plus an extra <strong>+15 bonus points</strong>!</p>
+        </div>
+
+        <div>
+          <h4 class="font-bold text-cyan-400 uppercase tracking-wider mb-1">Deck Breakdown (94 Cards)</h4>
+          <div class="grid grid-cols-2 sm:grid-cols-3 gap-2 mt-2 font-mono text-xs">
+            <div class="p-2 rounded bg-slate-950 border border-slate-800">1x <strong>0</strong> & 1x <strong>1</strong></div>
+            <div class="p-2 rounded bg-slate-950 border border-slate-800">2x <strong>2</strong> & 3x <strong>3</strong></div>
+            <div class="p-2 rounded bg-slate-950 border border-slate-800">4x <strong>4</strong> & 5x <strong>5</strong></div>
+            <div class="p-2 rounded bg-slate-950 border border-slate-800">6x <strong>6</strong> & 7x <strong>7</strong></div>
+            <div class="p-2 rounded bg-slate-950 border border-slate-800">8x <strong>8</strong> & 9x <strong>9</strong></div>
+            <div class="p-2 rounded bg-slate-950 border border-slate-800">10x <strong>10</strong>, 11x <strong>11</strong>, 12x <strong>12</strong></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="mt-5 text-right">
+        <button onclick="closeRulesModal()" class="px-5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs border border-slate-700">
+          Got It, Let's Play!
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let audioCtx = null;
+    let soundEnabled = true;
+
+    function initAudio() {
+      if (!audioCtx) {
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        if (AudioContext) audioCtx = new AudioContext();
+      }
+      if (audioCtx && audioCtx.state === 'suspended') {
+        audioCtx.resume();
+      }
+    }
+
+    function toggleSound() {
+      soundEnabled = !soundEnabled;
+      const icon = document.getElementById('audioIcon');
+      if (soundEnabled) {
+        icon.className = 'fas fa-volume-up text-sm';
+        playBeep(523.25, 0.08, 'sine');
+      } else {
+        icon.className = 'fas fa-volume-mute text-sm text-slate-500';
+      }
+    }
+
+    function playBeep(freq, duration, type = 'sine', gainVal = 0.15) {
+      if (!soundEnabled) return;
+      initAudio();
+      if (!audioCtx) return;
+
+      try {
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = type;
+        osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+        gain.gain.setValueAtTime(gainVal, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + duration);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start();
+        osc.stop(audioCtx.currentTime + duration);
+      } catch (e) {}
+    }
+
+    function soundCardFlip() {
+      if (!soundEnabled) return;
+      initAudio();
+      playBeep(440, 0.06, 'triangle', 0.12);
+      setTimeout(() => playBeep(660, 0.08, 'sine', 0.15), 30);
+    }
+
+    function soundStay() {
+      if (!soundEnabled) return;
+      initAudio();
+      playBeep(523.25, 0.08, 'sine', 0.12);
+      setTimeout(() => playBeep(659.25, 0.12, 'sine', 0.15), 60);
+      setTimeout(() => playBeep(783.99, 0.18, 'sine', 0.18), 120);
+    }
+
+    function soundBust() {
+      if (!soundEnabled) return;
+      initAudio();
+      playBeep(180, 0.18, 'sawtooth', 0.2);
+      setTimeout(() => playBeep(130, 0.35, 'sawtooth', 0.25), 80);
+    }
+
+    function soundSecondChance() {
+      if (!soundEnabled) return;
+      initAudio();
+      playBeep(350, 0.1, 'sine', 0.15);
+      setTimeout(() => playBeep(700, 0.25, 'triangle', 0.2), 80);
+    }
+
+    function soundFlipSeven() {
+      if (!soundEnabled) return;
+      initAudio();
+      const notes = [523.25, 659.25, 783.99, 1046.50];
+      notes.forEach((freq, idx) => {
+        setTimeout(() => playBeep(freq, 0.2, 'triangle', 0.25), idx * 90);
+      });
+    }
+
+    function soundActionCard() {
+      if (!soundEnabled) return;
+      initAudio();
+      playBeep(600, 0.08, 'square', 0.12);
+      setTimeout(() => playBeep(850, 0.15, 'sine', 0.18), 70);
+    }
+
+    function soundFreeze() {
+      if (!soundEnabled) return;
+      initAudio();
+      playBeep(880, 0.1, 'sine', 0.15);
+      setTimeout(() => playBeep(440, 0.2, 'sine', 0.2), 90);
+    }
+
+    /* Card Themes with High-Contrast Physical Faces */
+    const CARD_THEMES = {
+      0: { name: 'ZERO', color: '#334155', bg: '#f8fafc', border: '#94a3b8', badge: '#64748b' },
+      1: { name: 'ONE', color: '#b91c1c', bg: '#ffffff', border: '#ef4444', badge: '#dc2626' },
+      2: { name: 'TWO', color: '#c2410c', bg: '#ffffff', border: '#f97316', badge: '#ea580c' },
+      3: { name: 'THREE', color: '#b45309', bg: '#ffffff', border: '#f59e0b', badge: '#d97706' },
+      4: { name: 'FOUR', color: '#a16207', bg: '#ffffff', border: '#eab308', badge: '#ca8a04' },
+      5: { name: 'FIVE', color: '#4d7c0f', bg: '#ffffff', border: '#84cc16', badge: '#65a30d' },
+      6: { name: 'SIX', color: '#15803d', bg: '#ffffff', border: '#22c55e', badge: '#16a34a' },
+      7: { name: 'FLIP 7', color: '#b45309', bg: '#fffbeb', border: '#f59e0b', badge: '#d97706', isSpecial: true },
+      8: { name: 'EIGHT', color: '#0f766e', bg: '#ffffff', border: '#14b8a6', badge: '#0d9488' },
+      9: { name: 'NINE', color: '#0369a1', bg: '#ffffff', border: '#0ea5e9', badge: '#0284c7' },
+      10: { name: 'TEN', color: '#1d4ed8', bg: '#ffffff', border: '#3b82f6', badge: '#2563eb' },
+      11: { name: 'ELEVEN', color: '#4338ca', bg: '#ffffff', border: '#6366f1', badge: '#4f46e5' },
+      12: { name: 'TWELVE', color: '#7e22ce', bg: '#ffffff', border: '#a855f7', badge: '#9333ea' }
+    };
+
+    function createCardElement(card, isMini = false, isDuplicateBust = false, isFrozen = false) {
+      const el = document.createElement('div');
+
+      // Modifier Cards (+2 to +10, x2)
+      if (card.type === 'modifier') {
+        const isX2 = card.subtype === 'multiply';
+        const bg = isX2 ? '#fffbeb' : '#f0fdf4';
+        const border = isX2 ? '#f59e0b' : '#22c55e';
+        const text = isX2 ? '#b45309' : '#15803d';
+
+        if (isMini) {
+          el.className = 'mini-card flex flex-col justify-between p-1.5 border-2 animate-card-flip select-none';
+          el.style.backgroundColor = bg;
+          el.style.borderColor = border;
+          el.innerHTML = `
+            <span class="text-[8px] font-black" style="color:${text}">${card.label}</span>
+            <div class="text-center font-black text-xs" style="color:${text}">${card.label}</div>
+            <span class="text-[7px] font-bold self-end text-slate-500">MOD</span>
+          `;
+        } else {
+          el.className = 'game-card flex flex-col justify-between p-2 sm:p-2.5 border-2 animate-card-flip select-none relative overflow-hidden';
+          el.style.backgroundColor = bg;
+          el.style.borderColor = border;
+          el.innerHTML = `
+            <div class="flex justify-between items-center leading-none">
+              <span class="font-black text-xs px-1.5 py-0.5 rounded" style="background:${border}25; color:${text};">${card.label}</span>
+              <span class="text-[9px] font-bold text-slate-500 uppercase tracking-wider">Modifier</span>
+            </div>
+            <div class="my-auto text-center">
+              <div class="font-black text-3xl sm:text-4xl tracking-tight" style="color:${text};">${card.label}</div>
+              <div class="text-[10px] font-bold text-slate-600 mt-0.5">${isX2 ? '★ DOUBLES SCORE ★' : '+ POINTS'}</div>
+            </div>
+            <div class="flex justify-between items-center text-[10px] font-bold pt-1 border-t" style="border-color:${border}30; color:${text};">
+              <i class="fas ${isX2 ? 'fa-times' : 'fa-plus'}"></i>
+              <span>${card.label}</span>
+            </div>
+          `;
+        }
+        return el;
+      }
+
+      // Action Cards (Freeze, Second Chance, Flip 3)
+      if (card.type === 'action') {
+        let bg = '#ffffff', border = '#3b82f6', text = '#1d4ed8', icon = 'fa-bolt', title = card.label;
+        if (card.subtype === 'freeze') {
+          bg = '#f0f9ff'; border = '#0284c7'; text = '#0369a1'; icon = 'fa-snowflake'; title = 'FREEZE';
+        } else if (card.subtype === 'secondChance') {
+          bg = '#ecfeff'; border = '#06b6d4'; text = '#0e7490'; icon = 'fa-shield-alt'; title = '2ND CHANCE';
+        } else if (card.subtype === 'flip3') {
+          bg = '#fff7ed'; border = '#ea580c'; text = '#c2410c'; icon = 'fa-forward'; title = 'FLIP 3';
+        }
+
+        if (isMini) {
+          el.className = 'mini-card flex flex-col justify-between p-1.5 border-2 animate-card-flip select-none';
+          el.style.backgroundColor = bg;
+          el.style.borderColor = border;
+          el.innerHTML = `
+            <i class="fas ${icon} text-[8px]" style="color:${text}"></i>
+            <div class="text-center font-black text-[9px]" style="color:${text}">${title}</div>
+            <span class="text-[7px] font-bold self-end text-slate-500">ACT</span>
+          `;
+        } else {
+          el.className = 'game-card flex flex-col justify-between p-2 sm:p-2.5 border-2 animate-card-flip select-none relative overflow-hidden';
+          el.style.backgroundColor = bg;
+          el.style.borderColor = border;
+          el.innerHTML = `
+            <div class="flex justify-between items-center leading-none">
+              <span class="font-black text-[10px] px-1.5 py-0.5 rounded" style="background:${border}25; color:${text};">${title}</span>
+              <i class="fas ${icon} text-xs" style="color:${text}"></i>
+            </div>
+            <div class="my-auto text-center">
+              <i class="fas ${icon} text-2xl sm:text-3xl mb-1" style="color:${text}"></i>
+              <div class="font-black text-xs sm:text-sm tracking-tight" style="color:${text}">${title}</div>
+            </div>
+            <div class="text-center text-[9px] font-bold uppercase tracking-wider text-slate-500 border-t pt-1" style="border-color:${border}30;">
+              Action Card
+            </div>
+          `;
+        }
+        return el;
+      }
+
+      // Number Cards (0 to 12)
+      const theme = CARD_THEMES[card.value] || { name: `NUM ${card.value}`, color: '#1d4ed8', bg: '#ffffff', border: '#3b82f6', badge: '#2563eb' };
+      const isSpecial7 = (card.value === 7);
+
+      if (isMini) {
+        el.className = 'mini-card flex flex-col justify-between p-1.5 border-2 animate-card-flip select-none relative';
+        el.style.backgroundColor = theme.bg;
+        el.style.borderColor = isDuplicateBust ? '#ef4444' : (isFrozen ? '#38bdf8' : theme.border);
+        el.innerHTML = `
+          <div class="flex justify-between items-center leading-none">
+            <span class="text-[11px] font-black" style="color:${isDuplicateBust ? '#ef4444' : theme.color}">${card.value}</span>
+            ${isSpecial7 ? '<i class="fas fa-star text-[7px] text-amber-500"></i>' : ''}
+          </div>
+          <div class="text-center font-black text-base" style="color:${isDuplicateBust ? '#ef4444' : theme.color}">${card.value}</div>
+          <div class="text-[10px] font-black self-end leading-none" style="color:${isDuplicateBust ? '#ef4444' : theme.color}">${card.value}</div>
+        `;
+      } else {
+        el.className = `game-card flex flex-col justify-between p-2 sm:p-2.5 border-2 animate-card-flip select-none relative ${isFrozen ? 'frost-border' : ''}`;
+        el.style.backgroundColor = theme.bg;
+        el.style.borderColor = isDuplicateBust ? '#ef4444' : (isFrozen ? '#38bdf8' : theme.border);
+
+        if (isSpecial7) {
+          el.style.boxShadow = '0 0 16px rgba(245, 158, 11, 0.5), 0 4px 12px rgba(0,0,0,0.35)';
+        }
+        if (isDuplicateBust) {
+          el.style.boxShadow = '0 0 16px rgba(239, 68, 68, 0.7), 0 4px 12px rgba(0,0,0,0.45)';
+        }
+
+        const pipCount = Math.min(card.value || 0, 5);
+        let pipsHtml = '';
+        if (card.value > 0) {
+          pipsHtml = Array(pipCount).fill(`<div class="w-1.5 h-1.5 rounded-full" style="background-color: ${isDuplicateBust ? '#ef4444' : theme.badge};"></div>`).join('');
+        } else {
+          pipsHtml = `<span class="text-[9px] font-bold text-slate-400">Zero</span>`;
+        }
+
+        el.innerHTML = `
+          <div class="flex justify-between items-center leading-none">
+            <div class="flex items-center space-x-1">
+              <span class="font-black text-lg sm:text-xl" style="color: ${isDuplicateBust ? '#ef4444' : theme.color};">${card.value}</span>
+              ${isSpecial7 ? '<i class="fas fa-star text-amber-500 text-xs"></i>' : ''}
+            </div>
+            <span class="text-[9px] font-black px-1.5 py-0.5 rounded-full" style="background: ${theme.border}22; color: ${isDuplicateBust ? '#ef4444' : theme.color};">
+              ${isDuplicateBust ? 'BUST!' : theme.name}
+            </span>
+          </div>
+
+          <div class="my-auto text-center flex flex-col items-center justify-center">
+            <span class="font-black text-4xl sm:text-5xl leading-none tracking-tight drop-shadow-sm ${isDuplicateBust ? 'line-through decoration-red-500' : ''}" style="color: ${isDuplicateBust ? '#ef4444' : theme.color};">
+              ${card.value}
+            </span>
+            ${isSpecial7 ? '<span class="text-[8px] font-black uppercase tracking-widest text-amber-600 mt-1">★ FLIP 7 ★</span>' : ''}
+            ${isDuplicateBust ? '<span class="text-[9px] font-black uppercase tracking-wider text-rose-600 mt-1 bg-rose-100 px-2 py-0.5 rounded">DUPLICATE</span>' : ''}
+          </div>
+
+          <div class="flex justify-between items-center leading-none pt-1 border-t" style="border-color: ${theme.border}35;">
+            <div class="flex items-center space-x-0.5">
+              ${pipsHtml}
+            </div>
+            <span class="font-black text-base sm:text-lg" style="color: ${isDuplicateBust ? '#ef4444' : theme.color};">${card.value}</span>
+          </div>
+        `;
+      }
+      return el;
+    }
+
+    function buildStandardFlip7Deck() {
+      const deck = [];
+      let uid = 1;
+
+      // Card 0 (1 copy)
+      deck.push({ id: uid++, type: 'number', value: 0, label: '0' });
+
+      // Numbers 1 to 12
+      for (let n = 1; n <= 12; n++) {
+        for (let count = 0; count < n; count++) {
+          deck.push({ id: uid++, type: 'number', value: n, label: String(n) });
+        }
+      }
+
+      // Modifier Cards (6 cards)
+      [2, 4, 6, 8, 10].forEach(val => {
+        deck.push({ id: uid++, type: 'modifier', subtype: 'plus', value: val, label: `+${val}` });
+      });
+      deck.push({ id: uid++, type: 'modifier', subtype: 'multiply', value: 2, label: 'x2' });
+
+      // Action Cards (9 cards: 3 of each)
+      for (let i = 0; i < 3; i++) {
+        deck.push({ id: uid++, type: 'action', subtype: 'freeze', label: 'FREEZE' });
+        deck.push({ id: uid++, type: 'action', subtype: 'flip3', label: 'FLIP 3' });
+        deck.push({ id: uid++, type: 'action', subtype: 'secondChance', label: '2nd CHANCE' });
+      }
+
+      return shuffleArray(deck);
+    }
+
+    function shuffleArray(arr) {
+      const copy = [...arr];
+      for (let i = copy.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [copy[i], copy[j]] = [copy[j], copy[i]];
+      }
+      return copy;
+    }
+
+    const gameState = {
+      mode: 'ai',
+      targetScore: 200,
+      aiSpeed: 650,
+      roundNumber: 1,
+      players: [],
+      currentPlayerIndex: 0,
+      deck: [],
+      discardPile: [],
+      isProcessingTurn: false,
+      gameIsOver: false,
+      roundEndedReason: ''
+    };
+
+    const AI_PROFILES = [
+      { name: 'Ace Bot', level: 'strategic' },
+      { name: 'Lucky Bot', level: 'casual' },
+      { name: 'Omega Bot', level: 'master' },
+      { name: 'Blitz Bot', level: 'strategic' }
+    ];
+
+    let setupPlayerCount = 3;
+
+    function selectGameMode(mode) {
+      gameState.mode = mode;
+      const aiBtn = document.getElementById('modeAiBtn');
+      const passBtn = document.getElementById('modePassBtn');
+      const speedContainer = document.getElementById('aiSpeedContainer');
+
+      if (mode === 'ai') {
+        aiBtn.className = 'p-3 rounded-xl border-2 border-emerald-500 bg-emerald-950/40 text-left transition';
+        passBtn.className = 'p-3 rounded-xl border-2 border-slate-800 bg-slate-800/40 text-left hover:border-slate-700 transition';
+        speedContainer.classList.remove('hidden');
+      } else {
+        passBtn.className = 'p-3 rounded-xl border-2 border-emerald-500 bg-emerald-950/40 text-left transition';
+        aiBtn.className = 'p-3 rounded-xl border-2 border-slate-800 bg-slate-800/40 text-left hover:border-slate-700 transition';
+        speedContainer.classList.add('hidden');
+      }
+      renderPlayerConfigInputs();
+    }
+
+    function setPlayerCount(count) {
+      setupPlayerCount = count;
+      document.querySelectorAll('.player-count-btn').forEach(btn => {
+        if (parseInt(btn.innerText) === count) {
+          btn.className = 'player-count-btn flex-1 py-2 rounded-lg font-bold text-sm bg-emerald-600 text-white border border-emerald-500 shadow';
+        } else {
+          btn.className = 'player-count-btn flex-1 py-2 rounded-lg font-bold text-sm bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300';
+        }
+      });
+      renderPlayerConfigInputs();
+    }
+
+    function setWinningScore(score) {
+      gameState.targetScore = score;
+      document.querySelectorAll('.score-target-btn').forEach(btn => {
+        if (btn.innerText.includes(String(score))) {
+          btn.className = 'score-target-btn py-2 rounded-lg text-xs font-bold bg-emerald-600 border border-emerald-500 text-white shadow';
+        } else {
+          btn.className = 'score-target-btn py-2 rounded-lg text-xs font-bold bg-slate-800 border border-slate-700 text-slate-300';
+        }
+      });
+    }
+
+    function setAiSpeed(speed) {
+      gameState.aiSpeed = speed;
+      document.querySelectorAll('.speed-btn').forEach(btn => {
+        const text = btn.innerText.toLowerCase();
+        if ((speed === 250 && text === 'fast') ||
+            (speed === 650 && text === 'normal') ||
+            (speed === 1100 && text === 'relaxed')) {
+          btn.className = 'speed-btn py-1.5 rounded-lg text-xs font-bold bg-emerald-600 border border-emerald-500 text-white';
+        } else {
+          btn.className = 'speed-btn py-1.5 rounded-lg text-xs font-bold bg-slate-800 border border-slate-700 text-slate-300';
+        }
+      });
+    }
+
+    function renderPlayerConfigInputs() {
+      const container = document.getElementById('playerConfigList');
+      container.innerHTML = '';
+
+      for (let i = 0; i < setupPlayerCount; i++) {
+        const isHuman = (gameState.mode === 'pass') || (i === 0);
+        const div = document.createElement('div');
+        div.className = 'flex items-center space-x-2 bg-slate-950 p-2 rounded-xl border border-slate-800';
+
+        const defaultName = isHuman ? `Player ${i + 1}` : AI_PROFILES[i - 1]?.name || `Bot ${i}`;
+        div.innerHTML = `
+          <div class="w-8 h-8 rounded-lg ${isHuman ? 'bg-emerald-600' : 'bg-indigo-600'} flex items-center justify-center text-xs font-bold text-white">
+            <i class="fas ${isHuman ? 'fa-user' : 'fa-robot'}"></i>
+          </div>
+          <input type="text" id="playerNameInput_${i}" value="${defaultName}" class="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1 text-xs text-white focus:outline-none focus:border-emerald-500" placeholder="Player name">
+          ${!isHuman ? `
+            <select id="playerAiLevel_${i}" class="bg-slate-900 border border-slate-700 text-[11px] rounded-lg px-2 py-1 text-slate-300 focus:outline-none">
+              <option value="strategic" ${i === 1 ? 'selected' : ''}>Strategic AI</option>
+              <option value="casual" ${i === 2 ? 'selected' : ''}>Casual AI</option>
+              <option value="master" ${i === 3 ? 'selected' : ''}>Master AI</option>
+            </select>
+          ` : '<span class="text-[11px] font-bold text-emerald-400 px-2">Human</span>'}
+        `;
+        container.appendChild(div);
+      }
+    }
+
+    function startConfiguredGame() {
+      gameState.players = [];
+      for (let i = 0; i < setupPlayerCount; i++) {
+        const nameInput = document.getElementById(`playerNameInput_${i}`);
+        const playerName = (nameInput && nameInput.value.trim()) ? nameInput.value.trim() : `Player ${i + 1}`;
+        const isHuman = (gameState.mode === 'pass') || (i === 0);
+        let aiLevel = 'strategic';
+        if (!isHuman) {
+          const select = document.getElementById(`playerAiLevel_${i}`);
+          if (select) aiLevel = select.value;
+        }
+
+        gameState.players.push({
+          id: i,
+          name: playerName,
+          isHuman: isHuman,
+          aiLevel: aiLevel,
+          totalScore: 0,
+          currentCards: [],
+          modifiers: [],
+          hasSecondChance: false,
+          status: 'active',
+          isFrozen: false,
+          duplicateBustCard: null,
+          flippedSeven: false
+        });
+      }
+
+      gameState.roundNumber = 1;
+      gameState.gameIsOver = false;
+      gameState.discardPile = [];
+      gameState.deck = buildStandardFlip7Deck();
+
+      closeNewGameModal();
+      document.getElementById('targetScoreDisplay').innerText = `${gameState.targetScore} pts`;
+      startNewRound();
+    }
+
+    function restartGameSameSettings() {
+      document.getElementById('gameOverModal').classList.add('hidden');
+      gameState.players.forEach(p => {
+        p.totalScore = 0;
+        p.currentCards = [];
+        p.modifiers = [];
+        p.hasSecondChance = false;
+        p.status = 'active';
+        p.isFrozen = false;
+        p.duplicateBustCard = null;
+        p.flippedSeven = false;
+      });
+      gameState.roundNumber = 1;
+      gameState.gameIsOver = false;
+      gameState.discardPile = [];
+      gameState.deck = buildStandardFlip7Deck();
+      startNewRound();
+    }
+
+    function startNewRound() {
+      gameState.isProcessingTurn = true;
+      disableControls(true);
+
+      gameState.players.forEach(p => {
+        gameState.discardPile.push(...p.currentCards);
+        gameState.discardPile.push(...p.modifiers);
+        if (p.duplicateBustCard) gameState.discardPile.push(p.duplicateBustCard);
+        p.currentCards = [];
+        p.modifiers = [];
+        p.hasSecondChance = false;
+        p.status = 'active';
+        p.isFrozen = false;
+        p.duplicateBustCard = null;
+        p.flippedSeven = false;
+      });
+
+      if (gameState.deck.length < gameState.players.length * 4) {
+        logActivity('Reshuffling discarded cards back into deck...');
+        gameState.deck = shuffleArray([...gameState.deck, ...gameState.discardPile]);
+        gameState.discardPile = [];
+      }
+
+      document.getElementById('roundCounter').innerText = gameState.roundNumber;
+      gameState.currentPlayerIndex = 0;
+      updateUI();
+      logActivity(`=== Round ${gameState.roundNumber} Started ===`);
+
+      dealInitialCardForPlayer(0);
+    }
+
+    function dealInitialCardForPlayer(playerIdx) {
+      if (playerIdx >= gameState.players.length) {
+        finishInitialDeal();
+        return;
+      }
+
+      const player = gameState.players[playerIdx];
+
+      if (player.status !== 'active') {
+        logActivity(`${player.name} was already frozen and is skipped in deal.`);
+        dealInitialCardForPlayer(playerIdx + 1);
+        return;
+      }
+
+      const card = drawCardFromDeck();
+      if (!card) {
+        finishInitialDeal();
+        return;
+      }
+
+      soundCardFlip();
+      logActivity(`Deal: ${player.name} drew ${formatCardLabel(card)}`);
+
+      if (card.type === 'action') {
+        soundActionCard();
+        resolveActionCard(player, card, () => {
+          if (player.status === 'active' && player.currentCards.length === 0) {
+            setTimeout(() => dealInitialCardForPlayer(playerIdx), 400);
+          } else {
+            setTimeout(() => dealInitialCardForPlayer(playerIdx + 1), 400);
+          }
+        });
+      } else if (card.type === 'modifier') {
+        player.modifiers.push(card);
+        updateUI();
+        setTimeout(() => dealInitialCardForPlayer(playerIdx), 400);
+      } else {
+        player.currentCards.push(card);
+        updateUI();
+        setTimeout(() => dealInitialCardForPlayer(playerIdx + 1), 400);
+      }
+    }
+
+    function finishInitialDeal() {
+      let firstActiveIdx = gameState.players.findIndex(p => p.status === 'active');
+      if (firstActiveIdx === -1) {
+        finishRound('All players were frozen during deal.');
+        return;
+      }
+
+      gameState.currentPlayerIndex = firstActiveIdx;
+      gameState.isProcessingTurn = false;
+      updateUI();
+      logActivity(`Initial deal complete! ${gameState.players[firstActiveIdx].name} begins the round.`);
+
+      const activePlayer = gameState.players[firstActiveIdx];
+      if (activePlayer.isHuman) {
+        disableControls(false);
+      } else {
+        disableControls(true);
+        setTimeout(() => runAiTurn(activePlayer), gameState.aiSpeed);
+      }
+    }
+
+    function drawCardFromDeck() {
+      if (gameState.deck.length === 0) {
+        if (gameState.discardPile.length > 0) {
+          gameState.deck = shuffleArray([...gameState.discardPile]);
+          gameState.discardPile = [];
+          logActivity('Deck was empty! Reshuffled discard pile into draw deck.');
+        } else {
+          return null;
+        }
+      }
+      return gameState.deck.pop();
+    }
+
+    function calculatePlayerHandScore(player) {
+      if (player.status === 'busted') return 0;
+
+      let sumNumbers = player.currentCards.reduce((acc, c) => acc + (c.value || 0), 0);
+
+      const hasDouble = player.modifiers.some(m => m.subtype === 'multiply');
+      if (hasDouble) {
+        sumNumbers = sumNumbers * 2;
+      }
+
+      const plusSum = player.modifiers
+        .filter(m => m.subtype === 'plus')
+        .reduce((acc, m) => acc + (m.value || 0), 0);
+
+      let total = sumNumbers + plusSum;
+
+      if (player.flippedSeven || hasSevenUniqueNumbers(player)) {
+        total += 15;
+      }
+
+      return total;
+    }
+
+    function hasSevenUniqueNumbers(player) {
+      const uniqueVals = new Set(player.currentCards.map(c => c.value));
+      return uniqueVals.size >= 7;
+    }
+
+    function calculateBustProbability(player) {
+      if (player.hasSecondChance || player.status !== 'active') return 0;
+
+      const heldValues = new Set(player.currentCards.map(c => c.value));
+      if (heldValues.size === 0 || gameState.deck.length === 0) return 0;
+
+      let bustCardsInDeck = 0;
+      gameState.deck.forEach(c => {
+        if (c.type === 'number' && heldValues.has(c.value)) {
+          bustCardsInDeck++;
+        }
+      });
+
+      return Math.round((bustCardsInDeck / gameState.deck.length) * 100);
+    }
+
+    function handleHitClick() {
+      if (gameState.isProcessingTurn || gameState.gameIsOver) return;
+
+      const activePlayer = gameState.players[gameState.currentPlayerIndex];
+      if (!activePlayer || !activePlayer.isHuman || activePlayer.status !== 'active') return;
+
+      executeHit(activePlayer);
+    }
+
+    function handleStayClick() {
+      if (gameState.isProcessingTurn || gameState.gameIsOver) return;
+
+      const activePlayer = gameState.players[gameState.currentPlayerIndex];
+      if (!activePlayer || !activePlayer.isHuman || activePlayer.status !== 'active') return;
+
+      if (activePlayer.currentCards.length === 0 && activePlayer.modifiers.length === 0) {
+        flashAlert('You must flip at least 1 card before staying!');
+        return;
+      }
+
+      executeStay(activePlayer);
+    }
+
+    function executeStay(player) {
+      soundStay();
+      player.status = 'stayed';
+      const pointsBanked = calculatePlayerHandScore(player);
+      logActivity(`${player.name} stayed and banked ${pointsBanked} pts.`);
+      showSpotlightNotice('Points Banked!', `${player.name} safely stayed with ${pointsBanked} pts.`, 'safe');
+      updateUI();
+
+      const remainingActive = gameState.players.filter(p => p.status === 'active');
+      if (remainingActive.length === 0) {
+        gameState.isProcessingTurn = true;
+        disableControls(true);
+        setTimeout(() => {
+          advanceToNextActivePlayer();
+        }, 1200);
+      } else {
+        advanceToNextActivePlayer();
+      }
+    }
+
+    function executeHit(player, onFinishCallback = null) {
+      gameState.isProcessingTurn = true;
+      const card = drawCardFromDeck();
+
+      if (!card) {
+        gameState.isProcessingTurn = false;
+        advanceToNextActivePlayer();
+        return;
+      }
+
+      soundCardFlip();
+
+      if (card.type === 'number') {
+        const duplicateIndex = player.currentCards.findIndex(c => c.value === card.value);
+
+        if (duplicateIndex !== -1) {
+          if (player.hasSecondChance) {
+            soundSecondChance();
+            player.hasSecondChance = false;
+            gameState.discardPile.push(card);
+            logActivity(`SHIELD TRIGGERED: ${player.name} drew duplicate ${card.value}, saved by Second Chance!`);
+            showSpotlightNotice('Shield Saved You!', `${player.name} drew duplicate ${card.value}, but 2nd Chance absorbed the bust!`, 'shield');
+            updateUI();
+            gameState.isProcessingTurn = false;
+            if (onFinishCallback) onFinishCallback();
+            else advanceToNextActivePlayer();
+          } else {
+            soundBust();
+            player.status = 'busted';
+            player.duplicateBustCard = card;
+            logActivity(`BUST! ${player.name} drew duplicate [${card.value}] and busted!`);
+            showSpotlightNotice('BUSTED!', `${player.name} drew a duplicate [${card.value}] and lost all cards this round!`, 'bust');
+            updateUI();
+
+            const remainingActive = gameState.players.filter(p => p.status === 'active');
+            if (remainingActive.length === 0) {
+              // Last player busted: give ample time to see the dealt card, duplicate match, and bust banner
+              gameState.isProcessingTurn = true;
+              disableControls(true);
+
+              const banner = document.getElementById('turnBannerText');
+              if (banner) {
+                banner.innerText = `${player.name} BUSTED on duplicate [${card.value}]! Round is over.`;
+              }
+              const sub = document.getElementById('subAlertText');
+              if (sub) {
+                sub.innerText = `Card dealt: [${card.value}]. Showing round summary in a moment...`;
+              }
+
+              setTimeout(() => {
+                gameState.isProcessingTurn = false;
+                if (onFinishCallback) onFinishCallback();
+                else advanceToNextActivePlayer();
+              }, 2800);
+            } else {
+              gameState.isProcessingTurn = false;
+              if (onFinishCallback) onFinishCallback();
+              else advanceToNextActivePlayer();
+            }
+          }
+        } else {
+          player.currentCards.push(card);
+          logActivity(`${player.name} drew [${card.value}]`);
+
+          if (hasSevenUniqueNumbers(player)) {
+            soundFlipSeven();
+            player.flippedSeven = true;
+            celebrateFlip7(player);
+            logActivity(`FLIP 7! ${player.name} collected 7 unique numbers (+15 BONUS)!`);
+            showSpotlightNotice('FLIP 7 ACHIEVED!', `🌟 ${player.name} assembled 7 unique cards (+15 BONUS)! 🌟`, 'flip7');
+            updateUI();
+            gameState.isProcessingTurn = false;
+            endRoundImmediatelyDueToFlip7(player);
+            return;
+          }
+
+          updateUI();
+          gameState.isProcessingTurn = false;
+          if (onFinishCallback) onFinishCallback();
+          else advanceToNextActivePlayer();
+        }
+      } else if (card.type === 'modifier') {
+        player.modifiers.push(card);
+        logActivity(`${player.name} received modifier card: ${card.label}`);
+        showSpotlightNotice('Modifier Collected', `${player.name} added ${card.label} to hand!`, 'mod');
+        updateUI();
+        gameState.isProcessingTurn = false;
+        if (onFinishCallback) onFinishCallback();
+        else advanceToNextActivePlayer();
+      } else if (card.type === 'action') {
+        soundActionCard();
+        logActivity(`${player.name} flipped Action Card: ${card.label}!`);
+        resolveActionCard(player, card, () => {
+          gameState.isProcessingTurn = false;
+          if (onFinishCallback) onFinishCallback();
+          else advanceToNextActivePlayer();
+        });
+      }
+    }
+
+    function resolveActionCard(actor, card, callback) {
+      gameState.discardPile.push(card);
+
+      if (card.subtype === 'secondChance') {
+        if (!actor.hasSecondChance) {
+          actor.hasSecondChance = true;
+          logActivity(`${actor.name} equipped Second Chance shield!`);
+          showSpotlightNotice('Shield Equipped', `${actor.name} holds a Second Chance protective shield.`, 'shield');
+          updateUI();
+          callback();
+        } else {
+          const eligiblePlayers = gameState.players.filter(p => p.status === 'active' && p.id !== actor.id && !p.hasSecondChance);
+          if (eligiblePlayers.length > 0) {
+            if (actor.isHuman) {
+              promptTargetSelection('Pass Second Chance Card', 'You already hold a shield. Choose an active opponent to give this to:', eligiblePlayers, (target) => {
+                target.hasSecondChance = true;
+                logActivity(`${actor.name} passed extra Second Chance to ${target.name}.`);
+                showSpotlightNotice('Shield Passed', `${actor.name} passed 2nd Chance to ${target.name}.`, 'shield');
+                updateUI();
+                callback();
+              });
+            } else {
+              const target = eligiblePlayers[Math.floor(Math.random() * eligiblePlayers.length)];
+              target.hasSecondChance = true;
+              logActivity(`${actor.name} passed extra Second Chance to ${target.name}.`);
+              showSpotlightNotice('Shield Passed', `${actor.name} passed 2nd Chance to ${target.name}.`, 'shield');
+              updateUI();
+              callback();
+            }
+          } else {
+            logActivity(`No eligible players without a shield. Extra Second Chance discarded.`);
+            callback();
+          }
+        }
+      } else if (card.subtype === 'freeze') {
+        const otherActive = gameState.players.filter(p => p.status === 'active' && p.id !== actor.id);
+        const eligiblePlayers = otherActive.length > 0 ? otherActive : [actor];
+
+        if (actor.isHuman) {
+          promptTargetSelection('Play FREEZE Card', 'Choose an active opponent to immediately FREEZE (locks their score):', eligiblePlayers, (target) => {
+            freezePlayer(target);
+            callback();
+          });
+        } else {
+          let bestTarget = eligiblePlayers[0];
+          let maxPts = -1;
+          eligiblePlayers.forEach(p => {
+            const pts = calculatePlayerHandScore(p);
+            if (pts > maxPts) {
+              maxPts = pts;
+              bestTarget = p;
+            }
+          });
+          freezePlayer(bestTarget);
+          callback();
+        }
+      } else if (card.subtype === 'flip3') {
+        const eligiblePlayers = gameState.players.filter(p => p.status === 'active');
+        if (eligiblePlayers.length === 0) {
+          callback();
+          return;
+        }
+
+        if (actor.isHuman) {
+          promptTargetSelection('Play FLIP THREE Card', 'Choose a player who must flip 3 consecutive cards:', eligiblePlayers, (target) => {
+            executeFlipThreeSequence(target, 0, callback);
+          });
+        } else {
+          let target = actor;
+          const trailingOpponents = eligiblePlayers.filter(p => p.id !== actor.id);
+          if (trailingOpponents.length > 0 && Math.random() > 0.4) {
+            target = trailingOpponents[0];
+          }
+          executeFlipThreeSequence(target, 0, callback);
+        }
+      }
+    }
+
+    function freezePlayer(target) {
+      target.status = 'stayed';
+      target.isFrozen = true;
+      const pts = calculatePlayerHandScore(target);
+      soundFreeze();
+      logActivity(`FREEZE! ${target.name} was frozen and forced to bank ${pts} pts.`);
+      showSpotlightNotice('FREEZE TRIGGERED!', `❄️ ${target.name} is FROZEN! Forced to stay with ${pts} pts.`, 'freeze');
+      updateUI();
+    }
+
+    function executeFlipThreeSequence(target, flipIndex, doneCallback) {
+      if (flipIndex >= 3 || target.status !== 'active' || gameState.gameIsOver) {
+        doneCallback();
+        return;
+      }
+
+      logActivity(`Flip Three: card ${flipIndex + 1}/3 for ${target.name}...`);
+      executeHit(target, () => {
+        setTimeout(() => {
+          executeFlipThreeSequence(target, flipIndex + 1, doneCallback);
+        }, 500);
+      });
+    }
+
+    function promptTargetSelection(title, desc, playerList, onSelectCallback) {
+      disableControls(true);
+      const modal = document.getElementById('targetModal');
+      document.getElementById('targetModalTitle').innerText = title;
+      document.getElementById('targetModalDesc').innerText = desc;
+      const list = document.getElementById('targetOptionsList');
+      list.innerHTML = '';
+
+      playerList.forEach(p => {
+        const btn = document.createElement('button');
+        btn.className = 'w-full p-2.5 rounded-xl bg-slate-800 hover:bg-emerald-950 border border-slate-700 hover:border-emerald-500 text-left flex items-center justify-between transition group';
+        const pts = calculatePlayerHandScore(p);
+        const cardCount = p.currentCards.length;
+        btn.innerHTML = `
+          <div class="flex items-center space-x-2">
+            <span class="font-bold text-sm text-white group-hover:text-emerald-300">${p.name} ${p.isHuman ? '(You)' : ''}</span>
+            <span class="text-[10px] text-slate-400">(${cardCount} ${cardCount === 1 ? 'card' : 'cards'})</span>
+          </div>
+          <span class="font-mono-num text-xs font-bold text-amber-400">${pts} pts</span>
+        `;
+        btn.onclick = () => {
+          modal.classList.add('hidden');
+          onSelectCallback(p);
+        };
+        list.appendChild(btn);
+      });
+
+      modal.classList.remove('hidden');
+    }
+
+    function advanceToNextActivePlayer() {
+      const activePlayers = gameState.players.filter(p => p.status === 'active');
+      if (activePlayers.length === 0) {
+        finishRound('All players have finished their turns.');
+        return;
+      }
+
+      let nextIndex = (gameState.currentPlayerIndex + 1) % gameState.players.length;
+      let iterations = 0;
+      while (gameState.players[nextIndex].status !== 'active' && iterations < gameState.players.length) {
+        nextIndex = (nextIndex + 1) % gameState.players.length;
+        iterations++;
+      }
+
+      gameState.currentPlayerIndex = nextIndex;
+      gameState.isProcessingTurn = false;
+      updateUI();
+
+      const currentPlayer = gameState.players[gameState.currentPlayerIndex];
+
+      if (!currentPlayer.isHuman && currentPlayer.status === 'active') {
+        disableControls(true);
+        setTimeout(() => {
+          runAiTurn(currentPlayer);
+        }, gameState.aiSpeed);
+      } else if (currentPlayer.isHuman && currentPlayer.status === 'active') {
+        disableControls(false);
+      }
+    }
+
+    function runAiTurn(aiPlayer) {
+      if (aiPlayer.status !== 'active' || gameState.gameIsOver) return;
+
+      const bustRisk = calculateBustProbability(aiPlayer);
+      const currentHandPts = calculatePlayerHandScore(aiPlayer);
+      const uniqueCount = new Set(aiPlayer.currentCards.map(c => c.value)).size;
+
+      let shouldHit = false;
+
+      if (uniqueCount >= 5 && aiPlayer.hasSecondChance) {
+        shouldHit = true;
+      } else if (aiPlayer.hasSecondChance) {
+        shouldHit = true;
+      } else if (aiPlayer.aiLevel === 'casual') {
+        shouldHit = (bustRisk < 35 || currentHandPts < 16);
+      } else if (aiPlayer.aiLevel === 'strategic') {
+        if (currentHandPts < 18) shouldHit = true;
+        else if (bustRisk <= 24 && currentHandPts < 32) shouldHit = true;
+        else if (uniqueCount === 6 && bustRisk < 38) shouldHit = true;
+        else shouldHit = false;
+      } else {
+        const highestOpponentTotal = Math.max(...gameState.players.filter(p => p.id !== aiPlayer.id).map(p => p.totalScore));
+        const trailing = highestOpponentTotal > aiPlayer.totalScore + 20;
+
+        if (trailing && bustRisk < 40) shouldHit = true;
+        else if (currentHandPts < 20) shouldHit = true;
+        else if (bustRisk <= 22) shouldHit = true;
+        else shouldHit = false;
+      }
+
+      if (shouldHit) {
+        executeHit(aiPlayer);
+      } else {
+        executeStay(aiPlayer);
+      }
+    }
+
+    function disableControls(disabled) {
+      const hitBtn = document.getElementById('hitBtn');
+      const stayBtn = document.getElementById('stayBtn');
+      const dockHit = document.getElementById('dockHitBtn');
+      const dockStay = document.getElementById('dockStayBtn');
+
+      [hitBtn, dockHit].forEach(btn => {
+        if (!btn) return;
+        btn.disabled = disabled;
+        if (disabled) btn.classList.add('opacity-40', 'cursor-not-allowed');
+        else btn.classList.remove('opacity-40', 'cursor-not-allowed');
+      });
+
+      [stayBtn, dockStay].forEach(btn => {
+        if (!btn) return;
+        btn.disabled = disabled;
+        if (disabled) btn.classList.add('opacity-40', 'cursor-not-allowed');
+        else btn.classList.remove('opacity-40', 'cursor-not-allowed');
+      });
+    }
+
+    function endRoundImmediatelyDueToFlip7(winner) {
+      logActivity(`Round ended instantly because ${winner.name} achieved FLIP 7!`);
+      setTimeout(() => {
+        finishRound(`🌟 ${winner.name} scored FLIP 7 (+15 bonus pts)!`);
+      }, 1400);
+    }
+
+    function finishRound(reason = 'All players finished their turns.') {
+      gameState.roundEndedReason = reason;
+      logActivity(`=== Round ${gameState.roundNumber} Scoring ===`);
+
+      gameState.players.forEach(p => {
+        const roundPts = calculatePlayerHandScore(p);
+        p.totalScore += roundPts;
+        logActivity(`${p.name}: +${roundPts} pts (Total: ${p.totalScore})`);
+      });
+
+      updateUI();
+
+      const gameWinner = gameState.players.find(p => p.totalScore >= gameState.targetScore);
+
+      showRoundSummaryModal(gameWinner);
+    }
+
+    function showRoundSummaryModal(gameWinner) {
+      const modal = document.getElementById('roundSummaryModal');
+      document.getElementById('roundSummaryTitle').innerText = `Round ${gameState.roundNumber} Summary`;
+      document.getElementById('roundSummaryReason').innerText = gameState.roundEndedReason;
+
+      const list = document.getElementById('roundSummaryList');
+      list.innerHTML = '';
+
+      const sorted = [...gameState.players].sort((a, b) => b.totalScore - a.totalScore);
+
+      sorted.forEach((p, idx) => {
+        const roundPts = calculatePlayerHandScore(p);
+        const isBusted = (p.status === 'busted');
+        const isFrozen = p.isFrozen;
+        const row = document.createElement('div');
+        row.className = 'p-3 rounded-xl bg-slate-950 border border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-2';
+
+        let statusBadge = '';
+        if (p.flippedSeven) {
+          statusBadge = '<span class="text-[10px] font-black px-2 py-0.5 rounded bg-amber-500 text-slate-950">FLIP 7 BONUS (+15)</span>';
+        } else if (isBusted) {
+          statusBadge = '<span class="text-[10px] font-black px-2 py-0.5 rounded bg-rose-950 text-rose-400 border border-rose-800">BUSTED (0 pts)</span>';
+        } else if (isFrozen) {
+          statusBadge = '<span class="text-[10px] font-black px-2 py-0.5 rounded bg-sky-950 text-sky-300 border border-sky-500 flex items-center space-x-1"><i class="fas fa-snowflake text-[9px]"></i><span>FROZEN</span></span>';
+        } else {
+          statusBadge = '<span class="text-[10px] font-black px-2 py-0.5 rounded bg-emerald-950 text-emerald-300 border border-emerald-800">BANKED</span>';
+        }
+
+        row.innerHTML = `
+          <div class="flex items-center space-x-2">
+            <span class="font-bold text-xs ${idx === 0 ? 'text-amber-400' : 'text-slate-400'}">#${idx + 1}</span>
+            <span class="font-bold text-sm text-white">${p.name} ${p.isHuman ? '(You)' : ''}</span>
+            ${statusBadge}
+          </div>
+          <div class="flex items-center space-x-3 text-xs">
+            <span class="text-slate-400">Round: <strong class="${isBusted ? 'text-rose-400' : 'text-emerald-400'} font-mono-num">+${roundPts}</strong></span>
+            <span class="text-slate-500">•</span>
+            <span class="text-slate-400">Total: <strong class="text-amber-400 font-mono-num font-bold text-sm">${p.totalScore} pts</strong></span>
+          </div>
+        `;
+        list.appendChild(row);
+      });
+
+      const nextBtn = document.getElementById('nextRoundBtn');
+      if (gameWinner) {
+        nextBtn.innerHTML = `<span>View Champion</span> <i class="fas fa-crown"></i>`;
+        nextBtn.onclick = () => {
+          modal.classList.add('hidden');
+          triggerGameOver(gameWinner);
+        };
+      } else {
+        nextBtn.innerHTML = `<span>Deal Round ${gameState.roundNumber + 1}</span> <i class="fas fa-arrow-right"></i>`;
+        nextBtn.onclick = proceedToNextRound;
+      }
+
+      modal.classList.remove('hidden');
+    }
+
+    function proceedToNextRound() {
+      document.getElementById('roundSummaryModal').classList.add('hidden');
+      gameState.roundNumber++;
+      startNewRound();
+    }
+
+    function triggerGameOver(winner) {
+      gameState.gameIsOver = true;
+      confetti({
+        particleCount: 160,
+        spread: 90,
+        origin: { y: 0.6 }
+      });
+
+      const modal = document.getElementById('gameOverModal');
+      document.getElementById('winnerText').innerText = `${winner.name} Wins the Game!`;
+
+      const list = document.getElementById('finalScoreList');
+      list.innerHTML = '';
+
+      const sorted = [...gameState.players].sort((a, b) => b.totalScore - a.totalScore);
+      sorted.forEach((p, idx) => {
+        const row = document.createElement('div');
+        row.className = 'flex items-center justify-between py-1.5 px-3 rounded-lg bg-slate-900 border border-slate-800';
+        row.innerHTML = `
+          <div class="flex items-center space-x-2">
+            <span class="font-bold text-xs ${idx === 0 ? 'text-amber-400' : 'text-slate-400'}">#${idx + 1}</span>
+            <span class="font-bold text-sm text-white">${p.name} ${p.isHuman ? '(You)' : ''}</span>
+          </div>
+          <span class="font-mono-num font-black text-sm ${idx === 0 ? 'text-amber-300' : 'text-slate-300'}">${p.totalScore} pts</span>
+        `;
+        list.appendChild(row);
+      });
+
+      modal.classList.remove('hidden');
+    }
+
+    function celebrateFlip7(player) {
+      confetti({
+        particleCount: 90,
+        spread: 75,
+        origin: { y: 0.7 }
+      });
+    }
+
+    function showSpotlightNotice(title, subtitle, type = 'safe') {
+      const overlay = document.getElementById('spotlightOverlay');
+      const card = document.getElementById('spotlightCard');
+      const icon = document.getElementById('spotlightIcon');
+      const titleEl = document.getElementById('spotlightTitle');
+      const subEl = document.getElementById('spotlightSubtitle');
+
+      titleEl.innerText = title;
+      subEl.innerText = subtitle;
+
+      if (type === 'bust') {
+        card.className = 'bg-slate-900/95 border-2 border-rose-500 text-white px-5 py-3 rounded-2xl shadow-2xl backdrop-blur-md flex items-center space-x-3 max-w-md mx-4 animate-bust';
+        icon.className = 'w-10 h-10 rounded-xl bg-rose-500/20 text-rose-400 flex items-center justify-center text-xl font-black';
+        icon.innerHTML = '<i class="fas fa-skull-crossbones"></i>';
+        titleEl.className = 'text-sm font-black uppercase tracking-wider text-rose-400';
+      } else if (type === 'freeze') {
+        card.className = 'bg-slate-900/95 border-2 border-sky-400 text-white px-5 py-3 rounded-2xl shadow-2xl backdrop-blur-md flex items-center space-x-3 max-w-md mx-4 frost-border';
+        icon.className = 'w-10 h-10 rounded-xl bg-sky-500/20 text-sky-400 flex items-center justify-center text-xl font-black';
+        icon.innerHTML = '<i class="fas fa-snowflake"></i>';
+        titleEl.className = 'text-sm font-black uppercase tracking-wider text-sky-400';
+      } else if (type === 'shield') {
+        card.className = 'bg-slate-900/95 border-2 border-cyan-400 text-white px-5 py-3 rounded-2xl shadow-2xl backdrop-blur-md flex items-center space-x-3 max-w-md mx-4';
+        icon.className = 'w-10 h-10 rounded-xl bg-cyan-500/20 text-cyan-400 flex items-center justify-center text-xl font-black';
+        icon.innerHTML = '<i class="fas fa-shield-alt"></i>';
+        titleEl.className = 'text-sm font-black uppercase tracking-wider text-cyan-400';
+      } else {
+        card.className = 'bg-slate-900/95 border-2 border-amber-400 text-white px-5 py-3 rounded-2xl shadow-2xl backdrop-blur-md flex items-center space-x-3 max-w-md mx-4';
+        icon.className = 'w-10 h-10 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center text-xl font-black';
+        icon.innerHTML = '<i class="fas fa-star"></i>';
+        titleEl.className = 'text-sm font-black uppercase tracking-wider text-amber-400';
+      }
+
+      overlay.classList.remove('opacity-0', '-translate-y-4');
+      overlay.classList.add('opacity-100', 'translate-y-0');
+
+      setTimeout(() => {
+        overlay.classList.remove('opacity-100', 'translate-y-0');
+        overlay.classList.add('opacity-0', '-translate-y-4');
+      }, 2600);
+    }
+
+    function updateUI() {
+      document.getElementById('roundCounter').innerText = gameState.roundNumber;
+      const mobRound = document.getElementById('mobileRoundCounter');
+      if (mobRound) mobRound.innerText = gameState.roundNumber;
+
+      document.getElementById('deckCounter').innerText = gameState.deck.length;
+      const mobDeck = document.getElementById('mobileDeckCounter');
+      if (mobDeck) mobDeck.innerText = gameState.deck.length;
+
+      document.getElementById('centerDeckCount').innerText = `${gameState.deck.length} cards`;
+      document.getElementById('discardCount').innerText = gameState.discardPile.length;
+
+      const displayPlayer = (gameState.mode === 'ai') 
+        ? (gameState.players.find(p => p.isHuman) || gameState.players[0])
+        : (gameState.players[gameState.currentPlayerIndex] || gameState.players[0]);
+
+      const activeTurnPlayer = gameState.players[gameState.currentPlayerIndex] || displayPlayer;
+      const isMyTurn = (gameState.currentPlayerIndex === displayPlayer.id);
+
+      const playerSection = document.getElementById('activePlayerSection');
+      if (displayPlayer.isFrozen) {
+        playerSection.className = 'bg-slate-900/95 border-2 border-sky-400 rounded-2xl p-3 sm:p-4 shadow-2xl frost-border relative transition-all duration-300';
+      } else if (isMyTurn) {
+        playerSection.className = 'bg-slate-900/95 border-2 border-emerald-500 rounded-2xl p-3 sm:p-4 shadow-2xl ring-2 ring-emerald-500/40 relative transition-all duration-300';
+      } else {
+        playerSection.className = 'bg-slate-900/95 border-2 border-slate-800 rounded-2xl p-3 sm:p-4 shadow-xl relative transition-all duration-300';
+      }
+
+      document.getElementById('activePlayerName').innerText = displayPlayer.name;
+      document.getElementById('activePlayerTag').innerText = displayPlayer.isHuman ? 'YOU' : 'PLAYER';
+      document.getElementById('activeTotalScore').innerText = displayPlayer.totalScore;
+
+      const handPts = calculatePlayerHandScore(displayPlayer);
+      document.getElementById('activeRoundScore').innerText = `+${handPts}`;
+      document.getElementById('activeHandPoints').innerText = `${handPts} pts`;
+
+      const dockHand = document.getElementById('dockHandPts');
+      if (dockHand) dockHand.innerText = `+${handPts}`;
+
+      const shieldBadge = document.getElementById('activeShieldBadge');
+      if (displayPlayer.hasSecondChance) {
+        shieldBadge.classList.remove('hidden');
+      } else {
+        shieldBadge.classList.add('hidden');
+      }
+
+      const frozenBadge = document.getElementById('activeFrozenBadge');
+      if (displayPlayer.isFrozen) {
+        frozenBadge.classList.remove('hidden');
+      } else {
+        frozenBadge.classList.add('hidden');
+      }
+
+      const uniqueVals = new Set(displayPlayer.currentCards.map(c => c.value));
+      document.getElementById('activeUniqueCount').innerText = `${uniqueVals.size} / 7`;
+
+      const pipsContainer = document.getElementById('uniquePips');
+      pipsContainer.innerHTML = '';
+      for (let i = 1; i <= 7; i++) {
+        const dot = document.createElement('div');
+        if (i <= uniqueVals.size) {
+          dot.className = 'w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full bg-amber-400 shadow-sm shadow-amber-400/60 ring-1 ring-amber-300';
+        } else {
+          dot.className = 'w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full bg-slate-800 border border-slate-700';
+        }
+        pipsContainer.appendChild(dot);
+      }
+
+      const activeCardsContainer = document.getElementById('activePlayerCards');
+      activeCardsContainer.innerHTML = '';
+
+      if (displayPlayer.isFrozen) {
+        const frostBanner = document.createElement('div');
+        frostBanner.className = 'w-full mb-2 p-2.5 rounded-xl bg-sky-950/80 border border-sky-400 text-sky-200 text-xs font-bold flex items-center justify-between frost-border';
+        frostBanner.innerHTML = `
+          <div class="flex items-center space-x-2">
+            <i class="fas fa-snowflake text-sky-300 text-sm animate-spin"></i>
+            <span>YOU ARE FROZEN! Banked your hand and sitting out this round.</span>
+          </div>
+          <span class="text-[10px] font-black uppercase px-2 py-0.5 rounded bg-sky-800 text-white font-mono-num">+${handPts} PTS</span>
+        `;
+        activeCardsContainer.appendChild(frostBanner);
+      }
+
+      if (displayPlayer.status === 'busted') {
+        const bustBanner = document.createElement('div');
+        bustBanner.className = 'w-full mb-2 p-2.5 rounded-xl bg-rose-950/80 border border-rose-600 text-rose-200 text-xs font-bold flex items-center justify-between animate-bust';
+        bustBanner.innerHTML = `
+          <div class="flex items-center space-x-2">
+            <i class="fas fa-skull-crossbones text-rose-400 text-sm"></i>
+            <span>BUSTED! Duplicate number drawn. Hand scores 0 points.</span>
+          </div>
+          <span class="text-[10px] font-black uppercase px-2 py-0.5 rounded bg-rose-800 text-white font-mono-num">0 PTS</span>
+        `;
+        activeCardsContainer.appendChild(bustBanner);
+      }
+
+      if (displayPlayer.currentCards.length === 0 && !displayPlayer.duplicateBustCard) {
+        activeCardsContainer.innerHTML += '<div class="text-xs text-slate-400 font-medium italic p-3">No number cards held yet. Tap HIT to flip!</div>';
+      } else {
+        displayPlayer.currentCards.forEach(c => {
+          activeCardsContainer.appendChild(createCardElement(c, false, false, displayPlayer.isFrozen));
+        });
+        if (displayPlayer.duplicateBustCard) {
+          activeCardsContainer.appendChild(createCardElement(displayPlayer.duplicateBustCard, false, true, false));
+        }
+      }
+
+      // Modifiers Row
+      const modRow = document.getElementById('activeModifiersRow');
+      const modList = document.getElementById('activeModifiersList');
+      const bonusCardsToRender = [...displayPlayer.modifiers];
+      if (displayPlayer.hasSecondChance) {
+        bonusCardsToRender.push({
+          id: `sc_${displayPlayer.id}`,
+          type: 'action',
+          subtype: 'secondChance',
+          label: '2nd CHANCE'
+        });
+      }
+
+      if (bonusCardsToRender.length > 0) {
+        modRow.classList.remove('hidden');
+        modList.innerHTML = '';
+        bonusCardsToRender.forEach(m => {
+          modList.appendChild(createCardElement(m, false));
+        });
+      } else {
+        modRow.classList.add('hidden');
+      }
+
+      // Bust Probability
+      const risk = calculateBustProbability(displayPlayer);
+      const probElem = document.getElementById('bustProbability');
+      const barElem = document.getElementById('riskBar');
+      const labelElem = document.getElementById('riskLabel');
+      const dockRisk = document.getElementById('dockRiskPts');
+
+      probElem.innerText = `${risk}%`;
+      barElem.style.width = `${risk}%`;
+      if (dockRisk) dockRisk.innerText = `(${risk}% risk)`;
+
+      if (displayPlayer.isFrozen || displayPlayer.status !== 'active') {
+        probElem.innerText = `0%`;
+        barElem.style.width = `0%`;
+        labelElem.innerText = displayPlayer.isFrozen ? 'FROZEN' : 'INACTIVE';
+      } else if (risk === 0) {
+        probElem.className = 'font-mono-num text-lg sm:text-2xl font-black text-cyan-400 leading-tight';
+        barElem.className = 'bg-cyan-500 h-full rounded-full transition-all duration-300';
+        labelElem.className = 'text-cyan-400 font-extrabold text-[10px] sm:text-[11px]';
+        labelElem.innerText = displayPlayer.hasSecondChance ? 'PROTECTED' : 'SAFE';
+      } else if (risk < 25) {
+        probElem.className = 'font-mono-num text-lg sm:text-2xl font-black text-emerald-400 leading-tight';
+        barElem.className = 'bg-emerald-500 h-full rounded-full transition-all duration-300';
+        labelElem.className = 'text-emerald-400 font-extrabold text-[10px] sm:text-[11px]';
+        labelElem.innerText = 'LOW';
+      } else if (risk < 45) {
+        probElem.className = 'font-mono-num text-lg sm:text-2xl font-black text-amber-400 leading-tight';
+        barElem.className = 'bg-amber-500 h-full rounded-full transition-all duration-300';
+        labelElem.className = 'text-amber-400 font-extrabold text-[10px] sm:text-[11px]';
+        labelElem.innerText = 'MODERATE';
+      } else {
+        probElem.className = 'font-mono-num text-lg sm:text-2xl font-black text-rose-500 leading-tight';
+        barElem.className = 'bg-rose-500 h-full rounded-full transition-all duration-300';
+        labelElem.className = 'text-rose-500 font-extrabold text-[10px] sm:text-[11px]';
+        labelElem.innerText = 'HIGH RISK';
+      }
+
+      // Action Buttons & Dock Texts
+      const bannerText = document.getElementById('turnBannerText');
+      const hitBtnText = document.getElementById('hitBtnText');
+      const stayBtnText = document.getElementById('stayBtnText');
+      const dockHitText = document.getElementById('dockHitBtnText');
+      const dockStayText = document.getElementById('dockStayBtnText');
+
+      if (displayPlayer.isFrozen) {
+        bannerText.innerText = `You are FROZEN! Waiting for round to end...`;
+        hitBtnText.innerText = `FROZEN (Locked)`;
+        stayBtnText.innerText = `Points Banked (+${handPts})`;
+        if (dockHitText) dockHitText.innerText = `FROZEN`;
+        if (dockStayText) dockStayText.innerText = `BANKED`;
+        disableControls(true);
+      } else if (displayPlayer.status === 'busted') {
+        bannerText.innerText = `You BUSTED this round! Waiting for opponents...`;
+        hitBtnText.innerText = `BUSTED (0 pts)`;
+        stayBtnText.innerText = `Round Lost`;
+        if (dockHitText) dockHitText.innerText = `BUSTED`;
+        if (dockStayText) dockStayText.innerText = `0 PTS`;
+        disableControls(true);
+      } else if (isMyTurn) {
+        bannerText.innerText = `Your turn: Hit to draw or Stay to bank points!`;
+        hitBtnText.innerText = `HIT (Flip Card)`;
+        stayBtnText.innerText = `STAY (Bank Points)`;
+        if (dockHitText) dockHitText.innerText = `HIT (Flip)`;
+        if (dockStayText) dockStayText.innerText = `STAY`;
+        disableControls(false);
+      } else {
+        bannerText.innerText = `${activeTurnPlayer.name} is playing...`;
+        hitBtnText.innerText = `${activeTurnPlayer.name}'s turn...`;
+        stayBtnText.innerText = `Wait...`;
+        if (dockHitText) dockHitText.innerText = `WAITING`;
+        if (dockStayText) dockStayText.innerText = `WAIT`;
+        disableControls(true);
+      }
+
+      renderOpponents(displayPlayer.id);
+    }
+
+    function renderOpponents(primaryPlayerId) {
+      const container = document.getElementById('opponentsContainer');
+      container.innerHTML = '';
+
+      gameState.players.forEach(p => {
+        if (p.id === primaryPlayerId) return;
+
+        const isCurrentlyActing = (p.id === gameState.currentPlayerIndex);
+        const cardBox = document.createElement('div');
+        const isBusted = (p.status === 'busted');
+        const isStayed = (p.status === 'stayed');
+        const isFrozen = p.isFrozen;
+
+        let statusBadge = '';
+        if (isFrozen) {
+          statusBadge = '<span class="text-[9px] sm:text-[10px] font-bold px-1.5 sm:px-2 py-0.5 rounded bg-sky-950 text-sky-300 border border-sky-400 flex items-center space-x-1"><i class="fas fa-snowflake text-[8px]"></i><span>FROZEN</span></span>';
+        } else if (isBusted) {
+          statusBadge = '<span class="text-[9px] sm:text-[10px] font-bold px-1.5 sm:px-2 py-0.5 rounded bg-rose-950 text-rose-400 border border-rose-800">BUSTED</span>';
+        } else if (isStayed) {
+          statusBadge = '<span class="text-[9px] sm:text-[10px] font-bold px-1.5 sm:px-2 py-0.5 rounded bg-amber-950 text-amber-400 border border-amber-800">STAYED</span>';
+        } else if (isCurrentlyActing) {
+          statusBadge = '<span class="text-[9px] sm:text-[10px] font-black px-1.5 sm:px-2 py-0.5 rounded bg-amber-500 text-slate-950 animate-pulse">PLAYING</span>';
+        } else {
+          statusBadge = '<span class="text-[9px] sm:text-[10px] font-bold px-1.5 sm:px-2 py-0.5 rounded bg-emerald-950 text-emerald-400 border border-emerald-800">ACTIVE</span>';
+        }
+
+        const pts = calculatePlayerHandScore(p);
+
+        cardBox.id = `opponent_box_${p.id}`;
+        cardBox.className = `p-2 sm:p-2.5 rounded-xl border transition-all min-w-[210px] sm:min-w-0 max-w-[260px] sm:max-w-none snap-start flex-shrink-0 sm:flex-shrink ${
+          isFrozen
+            ? 'bg-slate-900/90 border-sky-400 frost-border'
+            : isCurrentlyActing 
+            ? 'bg-slate-900 border-amber-500 active-opponent-glow' 
+            : isBusted 
+            ? 'bg-slate-950/40 border-slate-800/60 opacity-65' 
+            : 'bg-slate-900/80 border-slate-800 shadow-md'
+        }`;
+
+        cardBox.innerHTML = `
+          <div class="flex items-center justify-between mb-1.5">
+            <div class="flex items-center space-x-1.5 sm:space-x-2">
+              <div class="w-5 h-5 sm:w-6 sm:h-6 rounded-md ${isCurrentlyActing ? 'bg-amber-500 text-slate-950' : 'bg-slate-800 text-slate-300'} flex items-center justify-center text-[10px] sm:text-xs">
+                <i class="fas ${p.isHuman ? 'fa-user' : 'fa-robot'}"></i>
+              </div>
+              <span class="font-bold text-xs text-white truncate max-w-[85px] sm:max-w-none">${p.name}</span>
+              ${p.hasSecondChance ? '<i class="fas fa-shield-alt text-cyan-400 text-xs" title="Second Chance Active"></i>' : ''}
+            </div>
+            <div class="flex items-center space-x-1">
+              ${statusBadge}
+              <span class="font-mono-num text-[11px] sm:text-xs font-bold text-amber-400">${p.totalScore}p</span>
+            </div>
+          </div>
+          <div class="flex items-center space-x-1 sm:space-x-1.5 overflow-x-auto py-1 min-h-[66px] sm:min-h-[76px]">
+            ${p.currentCards.length === 0 && !p.duplicateBustCard ? '<span class="text-[10px] sm:text-[11px] text-slate-500 italic">No cards</span>' : ''}
+          </div>
+          <div class="flex justify-between items-center mt-1 text-[9px] sm:text-[10px] text-slate-400 border-t border-slate-800/80 pt-1">
+            <span>Hand: <strong class="${isBusted ? 'text-rose-400' : 'text-emerald-400'} font-mono-num">+${pts}</strong></span>
+            <span>Unique: <strong class="text-amber-400 font-mono-num">${new Set(p.currentCards.map(c => c.value)).size}/7</strong></span>
+          </div>
+        `;
+
+        const cardsRow = cardBox.querySelector('.flex.items-center.space-x-1\\.5');
+        p.currentCards.forEach(c => {
+          cardsRow.appendChild(createCardElement(c, true, false, isFrozen));
+        });
+        if (p.duplicateBustCard) {
+          cardsRow.appendChild(createCardElement(p.duplicateBustCard, true, true, false));
+        }
+        p.modifiers.forEach(m => {
+          cardsRow.appendChild(createCardElement(m, true));
+        });
+        if (p.hasSecondChance) {
+          cardsRow.appendChild(createCardElement({
+            id: `opp_sc_${p.id}`,
+            type: 'action',
+            subtype: 'secondChance',
+            label: '2nd CHANCE'
+          }, true));
+        }
+
+        container.appendChild(cardBox);
+      });
+    }
+
+    function formatCardLabel(c) {
+      if (c.type === 'number') return `[${c.value}]`;
+      if (c.type === 'modifier') return `[Mod: ${c.label}]`;
+      if (c.type === 'action') return `[Action: ${c.label}]`;
+      return '';
+    }
+
+    function logActivity(text) {
+      const logBox = document.getElementById('logContainer');
+      if (!logBox) return;
+      const item = document.createElement('div');
+      item.innerHTML = `<span class="text-slate-500">[${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}]</span> ${text}`;
+      logBox.appendChild(item);
+      logBox.scrollTop = logBox.scrollHeight;
+    }
+
+    function toggleLog() {
+      const box = document.getElementById('logContainer');
+      const label = document.getElementById('logToggleLabel');
+      const icon = document.getElementById('logChevron');
+      if (box.classList.contains('hidden')) {
+        box.classList.remove('hidden');
+        label.innerText = 'Hide';
+        icon.className = 'fas fa-chevron-up';
+      } else {
+        box.classList.add('hidden');
+        label.innerText = 'Show recent';
+        icon.className = 'fas fa-chevron-down';
+      }
+    }
+
+    function flashAlert(msg) {
+      const sub = document.getElementById('subAlertText');
+      if (!sub) return;
+      sub.innerText = msg;
+      setTimeout(() => {
+        sub.innerText = 'Push your luck or bank your score!';
+      }, 3500);
+    }
+
+    function openRulesModal() {
+      document.getElementById('rulesModal').classList.remove('hidden');
+    }
+
+    function closeRulesModal() {
+      document.getElementById('rulesModal').classList.add('hidden');
+    }
+
+    function openNewGameModal() {
+      renderPlayerConfigInputs();
+      document.getElementById('newGameModal').classList.remove('hidden');
+    }
+
+    function closeNewGameModal() {
+      document.getElementById('newGameModal').classList.add('hidden');
+    }
+
+    window.onload = function() {
+      renderPlayerConfigInputs();
+      startConfiguredGame();
+    };
+  </script>
+</body>
+</html>
