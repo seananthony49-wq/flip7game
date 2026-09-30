@@ -820,27 +820,27 @@
         el.innerHTML = `
           <div class="flex justify-between items-center leading-none">
             <div class="flex items-center space-x-1">
-              <span class="font-black text-lg sm:text-xl" style="color: ${isDuplicateBust ? '#ef4444' : theme.color};">${card.value}</span>
-              ${isSpecial7 ? '<i class="fas fa-star text-amber-500 text-xs"></i>' : ''}
+              <span class="font-black text-base sm:text-xl" style="color: ${isDuplicateBust ? '#ef4444' : theme.color};">${card.value}</span>
+              ${isSpecial7 ? '<i class="fas fa-star text-amber-500 text-[10px] sm:text-xs"></i>' : ''}
             </div>
-            <span class="text-[9px] font-black px-1.5 py-0.5 rounded-full" style="background: ${theme.border}22; color: ${isDuplicateBust ? '#ef4444' : theme.color};">
+            <span class="text-[8px] sm:text-[9px] font-black px-1 sm:px-1.5 py-0.5 rounded-full" style="background: ${theme.border}22; color: ${isDuplicateBust ? '#ef4444' : theme.color};">
               ${isDuplicateBust ? 'BUST!' : theme.name}
             </span>
           </div>
 
           <div class="my-auto text-center flex flex-col items-center justify-center">
-            <span class="font-black text-4xl sm:text-5xl leading-none tracking-tight drop-shadow-sm ${isDuplicateBust ? 'line-through decoration-red-500' : ''}" style="color: ${isDuplicateBust ? '#ef4444' : theme.color};">
+            <span class="font-black text-3xl sm:text-5xl leading-none tracking-tight drop-shadow-sm ${isDuplicateBust ? 'line-through decoration-red-500' : ''}" style="color: ${isDuplicateBust ? '#ef4444' : theme.color};">
               ${card.value}
             </span>
-            ${isSpecial7 ? '<span class="text-[8px] font-black uppercase tracking-widest text-amber-600 mt-1">★ FLIP 7 ★</span>' : ''}
-            ${isDuplicateBust ? '<span class="text-[9px] font-black uppercase tracking-wider text-rose-600 mt-1 bg-rose-100 px-2 py-0.5 rounded">DUPLICATE</span>' : ''}
+            ${isSpecial7 ? '<span class="text-[7px] sm:text-[8px] font-black uppercase tracking-widest text-amber-600 mt-0.5 sm:mt-1">★ FLIP 7 ★</span>' : ''}
+            ${isDuplicateBust ? '<span class="text-[8px] sm:text-[9px] font-black uppercase tracking-wider text-rose-600 mt-0.5 bg-rose-100 px-1.5 py-0.5 rounded">DUPLICATE</span>' : ''}
           </div>
 
-          <div class="flex justify-between items-center leading-none pt-1 border-t" style="border-color: ${theme.border}35;">
+          <div class="flex justify-between items-center leading-none pt-0.5 sm:pt-1 border-t" style="border-color: ${theme.border}35;">
             <div class="flex items-center space-x-0.5">
               ${pipsHtml}
             </div>
-            <span class="font-black text-base sm:text-lg" style="color: ${isDuplicateBust ? '#ef4444' : theme.color};">${card.value}</span>
+            <span class="font-black text-sm sm:text-lg" style="color: ${isDuplicateBust ? '#ef4444' : theme.color};">${card.value}</span>
           </div>
         `;
       }
